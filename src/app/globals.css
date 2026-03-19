@@ -257,3 +257,66 @@ html, body {
   border: 1px solid var(--border);
 }
 [data-tooltip]:hover::after { opacity: 1; }
+
+/* ── Landing Page Animations ─────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Navbar fades in as a unit */
+.anim-nav    { animation: fadeIn  0.5s ease-out 0.05s both; }
+
+/* Hero staggered: badge → heading → sub → cta */
+.anim-badge  { animation: fadeUp  0.55s cubic-bezier(0.22,1,0.36,1) 0.15s both; }
+.anim-h1     { animation: fadeUp  0.65s cubic-bezier(0.22,1,0.36,1) 0.28s both; }
+.anim-sub    { animation: fadeUp  0.60s cubic-bezier(0.22,1,0.36,1) 0.40s both; }
+.anim-cta    { animation: fadeUp  0.55s cubic-bezier(0.22,1,0.36,1) 0.52s both; }
+
+/* Feature cards: stagger with 60ms spacing, start after hero is done */
+.anim-card   { animation: fadeUp  0.5s  cubic-bezier(0.22,1,0.36,1) both; }
+.anim-card:nth-child(1) { animation-delay: 0.60s; }
+.anim-card:nth-child(2) { animation-delay: 0.66s; }
+.anim-card:nth-child(3) { animation-delay: 0.72s; }
+.anim-card:nth-child(4) { animation-delay: 0.78s; }
+.anim-card:nth-child(5) { animation-delay: 0.84s; }
+.anim-card:nth-child(6) { animation-delay: 0.90s; }
+
+/* Tech strip */
+.anim-strip  { animation: fadeIn  0.6s ease-out 0.95s both; }
+
+/* ── Hover: compositor-only (transform + opacity) ────────────── */
+.feature-card {
+  transition:
+    transform 0.22s cubic-bezier(0.22,1,0.36,1),
+    box-shadow 0.22s ease;
+  /* Promote to own layer so hover doesn't repaint siblings */
+  will-change: transform;
+}
+
+.feature-card:hover {
+  transform: translateY(-3px) scale(1.018);
+  /* Reduced shadow: 2 layers max, blur ≤ 24px */
+  box-shadow:
+    0 0 0 1px rgba(99,102,241,0.18),
+    0 8px 24px rgba(0,0,0,0.32);
+}
+
+/* Remove will-change after hover to free GPU memory */
+.feature-card:not(:hover) { will-change: auto; }
+
+/* ── Respect prefers-reduced-motion ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .anim-nav, .anim-badge, .anim-h1, .anim-sub,
+  .anim-cta, .anim-card, .anim-strip {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .feature-card { transition: none !important; }
+}
