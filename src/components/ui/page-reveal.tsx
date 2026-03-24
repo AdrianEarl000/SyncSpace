@@ -26,7 +26,11 @@ export function PageReveal({ children, className = "" }: PageRevealProps) {
   return (
     <div ref={ref} className={`page-reveal ${className}`}>
       {children}
-      <style>{`
+      {/* Using dangerouslySetInnerHTML prevents Next.js from escaping 
+        the ">" symbol into "&gt;" during server-side rendering, 
+        which eliminates the hydration mismatch error.
+      */}
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes pageRevealIn {
           from {
             opacity: 0;
@@ -49,7 +53,7 @@ export function PageReveal({ children, className = "" }: PageRevealProps) {
         .stagger-children > *:nth-child(4) { animation-delay: 0.26s; }
         .stagger-children > *:nth-child(5) { animation-delay: 0.33s; }
         .stagger-children > *:nth-child(6) { animation-delay: 0.40s; }
-      `}</style>
+      `}} />
     </div>
   );
 }

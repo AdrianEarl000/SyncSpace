@@ -1,36 +1,11 @@
-/**
- * Landing page — performance-optimized build.
- *
- * Background layer budget:
- * - SVG feTurbulence noise → replaced with a static CSS pseudo-element
- * noise pattern (zero GPU cost, rendered once at paint time)
- * - Glow blobs: blur reduced 50–70px → 24–32px; element sizes halved;
- * `will-change: transform` removed (was forcing unnecessary GPU layers)
- * - Dot grid: stays as-is (single background-image tile, compositor-friendly)
- *
- * Animation budget:
- * - All animations moved to external CSS to prevent hydration risks
- * - All entrance animations use only `opacity` + `transform: translateY`
- * → compositor-only, never triggers layout or paint
- * - Stagger spread over 0.6s total
- * - Feature cards: spring easing replaced with linear-eased duration
- * - hover box-shadow: blur reduced, spread layers reduced from 3 → 2
- * - `prefers-reduced-motion` query strips all animations for accessibility
- *
- * Glow blobs:
- * - `transform: translateZ(0)` promotes them once at parse time, preventing
- * per-frame layer promotion/demotion thrash. The actual blur is halved.
- * - Fourth blob removed (was redundant with first two)
- */
-
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SyncSpaceLogo } from "@/components/ui/syncspace-logo";
 import { ParticlesBackground } from "@/components/ui/particles-background";
 import { PageReveal } from "@/components/ui/page-reveal";
+import { BackgroundEffects } from "@/components/ui/background-effects";
 
-// Feature card data lifted out of the render function to avoid re-allocation
 const FEATURES = [
   { icon: "💬", title: "Real-time Chat",  desc: "Instant messages with typing indicators and avatars", color: "#6366F1" },
   { icon: "🎨", title: "Live Whiteboard", desc: "Draw together on a shared canvas with live cursors",  color: "#22C55E" },
@@ -50,77 +25,17 @@ export default async function LandingPage() {
   if (session?.user) redirect("/dashboard");
 
   return (
-    <main className="relative min-h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* ══ LAYER 0 — static backgrounds (no animation, no will-change) ══ */}
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{ zIndex: 0 }}
-        aria-hidden="true"
-      >
-        {/* Top-left indigo blob */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            top: "-10%", left: "6%",
-            width: 420, height: 420,
-            background: "radial-gradient(circle, rgba(99,102,241,0.14) 0%, transparent 70%)",
-            filter: "blur(32px)",
-            transform: "translateZ(0)",   // single GPU layer promotion
-          }}
-        />
-        {/* Bottom-right green blob */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            bottom: "-8%", right: "2%",
-            width: 360, height: 360,
-            background: "radial-gradient(circle, rgba(34,197,94,0.10) 0%, transparent 70%)",
-            filter: "blur(28px)",
-            transform: "translateZ(0)",
-          }}
-        />
-        {/* Mid amber accent */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            top: "38%", right: "20%",
-            width: 240, height: 240,
-            background: "radial-gradient(circle, rgba(245,158,11,0.07) 0%, transparent 70%)",
-            filter: "blur(24px)",
-            transform: "translateZ(0)",
-          }}
-        />
-      </div>
-
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          zIndex: 0,
-          opacity: 0.035,
-          backgroundImage: "radial-gradient(circle, rgba(148,163,184,0.8) 1px, transparent 1px)",
-          backgroundSize: "36px 36px",
-        }}
-        aria-hidden="true"
-      />
-
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          zIndex: 0,
-          opacity: 0.028,
-          backgroundImage: `url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAgMAAADXB5lNAAAADFBMVEUAAAD///////////84wDuoAAAABHRSTlMAgICAfBFTMAAAADNJREFUeNpjYBgFgx8AAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAPsABAABAAF/AAAAAElFTkSuQmCC")`,
-          backgroundSize: "64px 64px",
-        }}
-        aria-hidden="true"
-      />
-
-      {/* ══ LAYER 1 — optimized particles canvas ══ */}
+    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
+      
+      {/* ══ BACKGROUND LAYERS ══ */}
+      <BackgroundEffects />
       <ParticlesBackground />
 
-      {/* ══ LAYER 10 — page content ══ */}
-      <div className="relative" style={{ zIndex: 10 }}>
+      {/* ══ PAGE CONTENT ══ */}
+      <div className="relative z-10">
         <PageReveal>
-          {/* ── Navbar ─────────────────────────────────────────────── */}
+          
+          {/* ── Navbar ── */}
           <nav className="anim-nav flex items-center justify-between px-8 py-5 max-w-7xl mx-auto">
             <SyncSpaceLogo size={38} showWordmark />
             <div className="flex items-center gap-3">
@@ -133,71 +48,40 @@ export default async function LandingPage() {
             </div>
           </nav>
 
-          {/* ── Hero ───────────────────────────────────────────────── */}
+          {/* ── Hero ── */}
           <section className="flex flex-col items-center text-center px-6 pt-24 pb-16 max-w-5xl mx-auto">
-            <div
-              className="anim-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-8 text-xs font-semibold tracking-wide"
-              style={{
-                background: "rgba(34,197,94,0.10)",
-                border: "1px solid rgba(34,197,94,0.25)",
-                color: "var(--accent)",
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full presence-dot"
-                style={{ background: "var(--accent)" }}
-              />
+            <div className="anim-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-8 text-xs font-semibold tracking-wide bg-green-500/10 border border-green-500/25 text-[var(--accent)]">
+              <span className="w-1.5 h-1.5 rounded-full presence-dot bg-[var(--accent)]" />
               Real-time collaboration — live now
             </div>
 
-            <h1
-              className="anim-h1 font-clash font-bold leading-[0.95] mb-6"
-              style={{
-                fontSize: "clamp(3.5rem, 9vw, 8rem)",
-                color: "var(--text)",
-                letterSpacing: "-0.03em",
-              }}
-            >
+            <h1 className="anim-h1 font-clash font-bold leading-[0.95] mb-6 text-[var(--text)] tracking-[-0.03em] text-[clamp(3.5rem,9vw,8rem)]">
               Where teams
               <br />
               <span className="text-gradient">think together</span>
             </h1>
 
-            <p
-              className="anim-sub text-lg max-w-2xl leading-relaxed mb-10"
-              style={{ color: "var(--muted)" }}
-            >
+            <p className="anim-sub text-lg max-w-2xl leading-relaxed mb-10 text-[var(--muted)]">
               SyncSpace is a real-time collaborative workspace — live chat, shared
               whiteboards, presence awareness, and activity tracking. Built for teams
               that move fast.
             </p>
 
             <div className="anim-cta flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/auth/register"
-                className="btn-primary px-8 py-3.5 rounded-2xl text-base inline-block"
-                style={{ boxShadow: "0 0 28px rgba(99,102,241,0.38)" }}
-              >
+              <Link href="/auth/register" className="btn-primary px-8 py-3.5 rounded-2xl text-base inline-block shadow-[0_0_28px_rgba(99,102,241,0.38)]">
                 Start collaborating free
               </Link>
-              <Link
-                href="/auth/login"
-                className="px-8 py-3.5 rounded-2xl text-base font-medium transition-colors inline-block"
-                style={{ border: "1px solid var(--border)", color: "var(--muted)" }}
-              >
+              <Link href="/auth/login" className="px-8 py-3.5 rounded-2xl text-base font-medium transition-colors inline-block border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--border)]">
                 Sign in
               </Link>
             </div>
           </section>
 
-          {/* ── Feature grid ───────────────────────────────────────── */}
+          {/* ── Feature Grid ── */}
           <section className="max-w-6xl mx-auto px-6 pb-24">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  className="anim-card feature-card card p-5 rounded-2xl cursor-default"
-                >
+                <div key={f.title} className="anim-card feature-card card p-5 rounded-2xl cursor-default">
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-4"
                     style={{
@@ -207,13 +91,10 @@ export default async function LandingPage() {
                   >
                     {f.icon}
                   </div>
-                  <h3
-                    className="font-clash font-semibold text-base mb-1.5"
-                    style={{ color: "var(--text)" }}
-                  >
+                  <h3 className="font-clash font-semibold text-base mb-1.5 text-[var(--text)]">
                     {f.title}
                   </h3>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--faint)" }}>
+                  <p className="text-sm leading-relaxed text-[var(--faint)]">
                     {f.desc}
                   </p>
                 </div>
@@ -221,20 +102,17 @@ export default async function LandingPage() {
             </div>
           </section>
 
-          {/* ── Tech strip ─────────────────────────────────────────── */}
-          <div className="anim-strip border-t" style={{ borderColor: "var(--border)" }}>
+          {/* ── Tech Strip ── */}
+          <div className="anim-strip border-t border-[var(--border)]">
             <div className="max-w-6xl mx-auto px-6 py-8 flex flex-wrap items-center justify-center gap-8">
               {TECH_TAGS.map((t) => (
-                <span
-                  key={t}
-                  className="text-xs font-semibold tracking-widest uppercase"
-                  style={{ color: "var(--faint)" }}
-                >
+                <span key={t} className="text-xs font-semibold tracking-widest uppercase text-[var(--faint)]">
                   {t}
                 </span>
               ))}
             </div>
           </div>
+
         </PageReveal>
       </div>
     </main>
