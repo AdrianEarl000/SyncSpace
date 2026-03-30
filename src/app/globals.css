@@ -1,9 +1,11 @@
+/* ── Google Fonts fallback ── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Google Fonts fallback (actual fonts loaded via next/font) ── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+
 
 /* ── CSS Custom Properties ────────────────────────────────────── */
 :root {
