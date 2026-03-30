@@ -1,4 +1,6 @@
 "use client";
+
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -12,20 +14,32 @@ const ERRORS: Record<string, string> = {
   Default:        "An unexpected authentication error occurred.",
 };
 
-export default function AuthErrorPage() {
+// 1. Separate the component that reads search params
+function ErrorContent() {
   const params = useSearchParams();
   const code   = params.get("error") ?? "Default";
   const message = ERRORS[code] ?? ERRORS.Default;
 
   return (
+    <>
+      <div className="text-5xl mb-4">⚠️</div>
+      <h1 className="font-clash font-bold text-xl mb-2" style={{ color: "var(--text)" }}>Authentication Error</h1>
+      <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>{message}</p>
+      <Link href="/auth/login" className="btn-primary inline-block px-6 py-2.5 rounded-xl text-sm">
+        Back to sign in
+      </Link>
+    </>
+  );
+}
+
+// 2. Wrap the content in Suspense
+export default function AuthErrorPage() {
+  return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
       <div className="card rounded-3xl p-8 max-w-md w-full text-center" style={{ background: "var(--sidebar)" }}>
-        <div className="text-5xl mb-4">⚠️</div>
-        <h1 className="font-clash font-bold text-xl mb-2" style={{ color: "var(--text)" }}>Authentication Error</h1>
-        <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>{message}</p>
-        <Link href="/auth/login" className="btn-primary inline-block px-6 py-2.5 rounded-xl text-sm">
-          Back to sign in
-        </Link>
+        <Suspense fallback={<div className="text-[var(--muted)]">Loading error details...</div>}>
+          <ErrorContent />
+        </Suspense>
       </div>
     </div>
   );

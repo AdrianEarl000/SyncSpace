@@ -88,7 +88,7 @@ export function useSocket() {
   // ── Emitters ──────────────────────────────────────────────────
 
   const sendMessage = useCallback((workspaceId: string, msg: ChatMessage) => {
-    getSocket().emit("chat:message", { workspaceId, ...msg });
+    getSocket().emit("chat:message", { ...msg, workspaceId });
   }, []);
 
   const startTyping = useCallback((workspaceId: string, user: { id: string; name: string | null }) => {
