@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useWorkspaceStore } from "@/store/workspace-store";
+// 1. Add Liveblocks imports
+import { useOthers, useStorage } from "@liveblocks/react";
 import { MessageSquare, PenLine, Activity, LogOut, LayoutDashboard, Users } from "lucide-react";
 import { getWorkspaceEmoji } from "@/lib/utils";
 import type { ActiveTab } from "@/types";
@@ -22,9 +24,17 @@ const NAV: Array<{ id: ActiveTab; label: string; icon: typeof MessageSquare }> =
 ];
 
 export function Sidebar({ workspace, currentUser }: Props) {
-  const { activeTab, setActiveTab, onlineUsers, messages } = useWorkspaceStore();
+  // 2. Only grab the UI state from Zustand now
+  const { activeTab, setActiveTab } = useWorkspaceStore();
+  
+  // 3. Grab real-time data directly from Liveblocks
+  const others = useOthers();
+  const messages = useStorage((root: any) => root.messages) || [];
 
   const unreadCount = 0; // implement with per-user read tracking if needed
+  
+  // Calculate total online (Others + Current User)
+  const totalOnline = others.length + 1;
 
   return (
     <aside className="w-60 flex flex-col flex-shrink-0 h-full"
@@ -44,7 +54,7 @@ export function Sidebar({ workspace, currentUser }: Props) {
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full presence-dot" style={{ background: "var(--accent)" }} />
               <p className="text-xs" style={{ color: "var(--faint)" }}>
-                {onlineUsers.length} online · {workspace.members.length} total
+                {totalOnline} online · {workspace.members.length} total
               </p>
             </div>
           </div>
@@ -74,7 +84,7 @@ export function Sidebar({ workspace, currentUser }: Props) {
                     {messages.length > 99 ? "99+" : messages.length}
                   </span>
                 )}
-                {id === "chat" && onlineUsers.length > 0 && messages.length === 0 && (
+                {id === "chat" && others.length > 0 && messages.length === 0 && (
                   <span className="ml-auto w-2 h-2 rounded-full" style={{ background: "var(--accent)" }} />
                 )}
               </button>

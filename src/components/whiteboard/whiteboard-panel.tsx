@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useSocket } from "@/hooks/use-socket";
+import { useStorage, useMutation, useOthers, useUpdateMyPresence } from "@liveblocks/react";
 import { Trash2, Pencil, Eraser, Minus, Plus, Undo2, Download } from "lucide-react";
+import type { WhiteboardStrokeData } from "@/types";
 
 interface Pt { x: number; y: number }
-interface Stroke { id: string; pts: Pt[]; color: string; width: number; tool: "pen"|"eraser"; userId: string }
 
 const PEN_COLORS = ["#F8FAFC","#6366F1","#22C55E","#F59E0B","#EF4444","#3B82F6","#EC4899","#F97316"];
 
@@ -18,71 +18,21 @@ interface Props {
 
 export function WhiteboardPanel({ workspaceId, currentUser, initialStrokes }: Props) {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const [strokes,      setStrokes]      = useState<Stroke[]>([]);
-  const [liveStroke,   setLiveStroke]   = useState<Stroke | null>(null);
-  const [remoteActive, setRemoteActive] = useState<Map<string, Stroke>>(new Map());
+  
+  const [liveStroke,   setLiveStroke]   = useState<WhiteboardStrokeData | null>(null);
   const [color,  setColor]  = useState(currentUser.color || PEN_COLORS[0]);
   const [width,  setWidth]  = useState(4);
   const [tool,   setTool]   = useState<"pen"|"eraser">("pen");
   const drawing  = useRef(false);
 
-  const { getSocketInstance, wbStrokeBegin, wbStrokePoint, wbStrokeEnd, wbClear, wbUndo } = useSocket();
+  const strokes = useStorage((root) => root.strokes) || [];
+  const updateMyPresence = useUpdateMyPresence();
+  const others = useOthers();
+  
+  const remoteActiveStrokes = others
+    .map((other) => other.presence.liveStroke)
+    .filter((s): s is WhiteboardStrokeData => s !== null);
 
-  // Parse initial strokes from DB
-  useEffect(() => {
-    const parsed = initialStrokes.map((s) => {
-      try {
-        const d = s.data as { pts?: Pt[]; color?: string; width?: number; tool?: "pen"|"eraser" };
-        return { id: s.id, userId: s.userId, pts: d.pts ?? [], color: d.color ?? "#fff", width: d.width ?? 3, tool: d.tool ?? "pen" } as Stroke;
-      } catch { return null; }
-    }).filter(Boolean) as Stroke[];
-    setStrokes(parsed);
-  }, [initialStrokes]);
-
-  // Socket listeners for remote drawing
-  useEffect(() => {
-    const s = getSocketInstance();
-
-    const onBegin = (stroke: Stroke) => {
-      setRemoteActive((m) => new Map(m).set(stroke.id, { ...stroke, pts: stroke.pts ?? [] }));
-    };
-    const onPoint = ({ strokeId, point }: { strokeId: string; point: Pt }) => {
-      setRemoteActive((m) => {
-        const map   = new Map(m);
-        const exist = map.get(strokeId);
-        if (exist) map.set(strokeId, { ...exist, pts: [...exist.pts, point] });
-        return map;
-      });
-    };
-    const onEnd = ({ strokeId }: { strokeId: string }) => {
-      setRemoteActive((m) => {
-        const map    = new Map(m);
-        const stroke = map.get(strokeId);
-        if (stroke) { setStrokes((ss) => [...ss, stroke]); map.delete(strokeId); }
-        return map;
-      });
-    };
-    const onUndo = ({ strokeId }: { strokeId: string }) => {
-      setStrokes((ss) => ss.filter((s) => s.id !== strokeId));
-    };
-    const onClear = () => { setStrokes([]); setRemoteActive(new Map()); };
-
-    s.on("wb:stroke:begin", onBegin);
-    s.on("wb:stroke:point", onPoint);
-    s.on("wb:stroke:end",   onEnd);
-    s.on("wb:stroke:undo",  onUndo);
-    s.on("wb:clear",        onClear);
-
-    return () => {
-      s.off("wb:stroke:begin", onBegin);
-      s.off("wb:stroke:point", onPoint);
-      s.off("wb:stroke:end",   onEnd);
-      s.off("wb:stroke:undo",  onUndo);
-      s.off("wb:clear",        onClear);
-    };
-  }, [getSocketInstance]);
-
-  // Render all strokes
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -91,8 +41,8 @@ export function WhiteboardPanel({ workspaceId, currentUser, initialStrokes }: Pr
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const renderStroke = (stroke: Stroke) => {
-      if (stroke.pts.length < 2) return;
+    const renderStroke = (stroke: WhiteboardStrokeData) => {
+      if (!stroke || !stroke.pts || stroke.pts.length < 2) return;
       ctx.beginPath();
       ctx.globalCompositeOperation = stroke.tool === "eraser" ? "destination-out" : "source-over";
       ctx.strokeStyle = stroke.color;
@@ -108,8 +58,8 @@ export function WhiteboardPanel({ workspaceId, currentUser, initialStrokes }: Pr
       ctx.globalCompositeOperation = "source-over";
     };
 
-    [...strokes, ...(liveStroke ? [liveStroke] : []), ...Array.from(remoteActive.values())].forEach(renderStroke);
-  }, [strokes, liveStroke, remoteActive]);
+    [...strokes, ...(liveStroke ? [liveStroke] : []), ...remoteActiveStrokes].forEach(renderStroke);
+  }, [strokes, liveStroke, remoteActiveStrokes]);
 
   const getPos = (e: React.MouseEvent): Pt => {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -125,38 +75,48 @@ export function WhiteboardPanel({ workspaceId, currentUser, initialStrokes }: Pr
     const strokeColor = tool === "eraser" ? "#0A0F1A" : color;
     const strokeWidth = tool === "eraser" ? Math.max(width * 5, 20) : width;
     const id  = `${currentUser.id}-${Date.now()}`;
-    const s: Stroke = { id, pts: [pt], color: strokeColor, width: strokeWidth, tool, userId: currentUser.id };
+    const s: WhiteboardStrokeData = { id, pts: [pt], color: strokeColor, width: strokeWidth, tool, userId: currentUser.id };
+    
     setLiveStroke(s);
-    wbStrokeBegin(workspaceId, s);
-  }, [color, width, tool, workspaceId, currentUser.id, wbStrokeBegin]);
+    updateMyPresence({ liveStroke: s });
+  }, [color, width, tool, currentUser.id, updateMyPresence]);
 
   const onMove = useCallback((e: React.MouseEvent) => {
     if (!drawing.current || !liveStroke) return;
     const pt = getPos(e);
-    setLiveStroke((s) => s ? { ...s, pts: [...s.pts, pt] } : s);
-    wbStrokePoint(workspaceId, liveStroke.id, pt);
-  }, [liveStroke, workspaceId, wbStrokePoint]);
+    
+    setLiveStroke((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, pts: [...prev.pts, pt] };
+        updateMyPresence({ liveStroke: next });
+        return next;
+    });
+  }, [liveStroke, updateMyPresence]);
 
-  const onUp = useCallback(() => {
+  const onUp = useMutation(({ storage }) => {
     if (!liveStroke) return;
     drawing.current = false;
-    setStrokes((ss) => [...ss, liveStroke]);
-    wbStrokeEnd(workspaceId, liveStroke.id);
+    
+    storage.get("strokes").push(liveStroke);
+    
     setLiveStroke(null);
-  }, [liveStroke, workspaceId, wbStrokeEnd]);
+    updateMyPresence({ liveStroke: null });
+  }, [liveStroke, updateMyPresence]);
 
-  const handleUndo = () => {
-    const myStrokes = strokes.filter((s) => s.userId === currentUser.id);
-    if (!myStrokes.length) return;
-    const last = myStrokes[myStrokes.length - 1];
-    setStrokes((ss) => ss.filter((s) => s.id !== last.id));
-    wbUndo(workspaceId, last.id);
-  };
+  const handleUndo = useMutation(({ storage }) => {
+    const strokesList = storage.get("strokes");
+    const lastIndex = strokesList.toArray().map((s) => s.userId).lastIndexOf(currentUser.id);
+    
+    if (lastIndex !== -1) {
+      strokesList.delete(lastIndex);
+    }
+  }, [currentUser.id]);
 
-  const handleClear = () => {
-    setStrokes([]); setRemoteActive(new Map()); setLiveStroke(null);
-    wbClear(workspaceId);
-  };
+  const handleClear = useMutation(({ storage }) => {
+    storage.get("strokes").clear();
+    setLiveStroke(null);
+    updateMyPresence({ liveStroke: null });
+  }, [updateMyPresence]);
 
   const handleDownload = () => {
     const a = document.createElement("a");
@@ -211,7 +171,7 @@ export function WhiteboardPanel({ workspaceId, currentUser, initialStrokes }: Pr
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={handleUndo} data-tooltip="Undo (your strokes)"
+          <button onClick={() => handleUndo()} data-tooltip="Undo (your strokes)"
             className="btn-ghost w-8 h-8 p-0 flex items-center justify-center rounded-xl"
             style={{ border: "1px solid var(--border)" }}>
             <Undo2 size={13} />
@@ -221,7 +181,7 @@ export function WhiteboardPanel({ workspaceId, currentUser, initialStrokes }: Pr
             style={{ border: "1px solid var(--border)" }}>
             <Download size={13} />
           </button>
-          <button onClick={handleClear}
+          <button onClick={() => handleClear()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-105"
             style={{ background: "rgba(239,68,68,0.08)", color: "#F87171", border: "1px solid rgba(239,68,68,0.2)" }}>
             <Trash2 size={12} /> Clear all

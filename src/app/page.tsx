@@ -17,7 +17,7 @@ const FEATURES = [
 
 const TECH_TAGS = [
   "Next.js 14", "TypeScript", "Supabase", "Prisma",
-  "Socket.IO", "NextAuth v5", "Tailwind CSS", "Zustand",
+  "Liveblocks", "NextAuth v5", "Tailwind CSS", "Zustand",
 ] as const;
 
 export default async function LandingPage() {

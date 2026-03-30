@@ -1,8 +1,9 @@
 "use client";
 
-import { useWorkspaceStore } from "@/store/workspace-store";
+import { useStorage } from "@liveblocks/react";
 import { formatRelative } from "@/lib/utils";
 import { Zap } from "lucide-react";
+import type { ActivityItem } from "@/types";
 
 const ICONS: Record<string, string> = {
   USER_JOINED:        "👋",
@@ -44,7 +45,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export function ActivityPanel() {
-  const { activities } = useWorkspaceStore();
+  const activities = (useStorage((root: any) => root.activities) as ActivityItem[]) || [];
 
   return (
     <div className="flex flex-col h-full">
@@ -126,7 +127,7 @@ export function ActivityPanel() {
                               className="text-sm font-semibold"
                               style={{ color: "var(--text)" }}
                             >
-                              {act.user.name ?? "Someone"}
+                              {act.user?.name ?? "Someone"}
                             </span>
                             <span className="text-sm" style={{ color: "var(--muted)" }}>
                               {LABELS[act.type] ?? act.type.replace(/_/g, " ").toLowerCase()}

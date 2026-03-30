@@ -1,6 +1,7 @@
-// ─── Extended Session ─────────────────────────────────────────────────────────
 import "next-auth";
+import type { LiveList } from "@liveblocks/client";
 
+// ─── Extended Session ─────────────────────────────────────────────────────────
 declare module "next-auth" {
   interface Session {
     user: {
@@ -16,68 +17,70 @@ declare module "next-auth" {
   }
 }
 
-// ─── Domain Types ─────────────────────────────────────────────────────────────
+// ─── Liveblocks Global Registry (NEW) ─────────────────────────────────────────
+declare global {
+  interface Liveblocks {
+    Presence: Presence;
+    Storage: Storage;
+  }
+}
 
-export interface WorkspaceUser {
-  socketId: string;
-  userId: string;
+export type Presence = {
+  cursor: { x: number; y: number } | null;
+  isTyping: boolean;
+  liveStroke: WhiteboardStrokeData | null;
+  info: {
+    name: string | null;
+    color: string;
+    image: string | null;
+  };
+};
+
+export type Storage = {
+  messages: LiveList<ChatMessage>;          
+  strokes: LiveList<WhiteboardStrokeData>;  
+  activities: LiveList<ActivityItem>;       
+};
+
+// ─── Domain Types (Converted to 'type' for Liveblocks LSON compatibility) ────
+
+export type LiveUser = {
+  id: string;
   name: string | null;
   image: string | null;
   color: string;
-  joinedAt: number;
-}
+};
 
-export interface ChatMessage {
+export type ChatMessage = {
   id: string;
   content: string;
   workspaceId: string;
   userId: string;
   createdAt: string;
   editedAt?: string | null;
-  user: {
-    id: string;
-    name: string | null;
-    image: string | null;
-    color: string;
-  };
-}
+  user: LiveUser;
+};
 
-export interface ActivityItem {
+export type ActivityItem = {
   id: string;
   type: string;
   workspaceId: string;
   createdAt: string;
-  metadata?: Record<string, unknown> | null;
-  user: {
-    id: string;
-    name: string | null;
-    image: string | null;
-    color: string;
-  };
-}
+  metadata?: Record<string, any> | null; 
+  user: LiveUser;
+};
 
-export interface TypingUser {
-  userId: string;
-  name: string | null;
-}
-
-export interface RemoteCursor {
-  userId: string;
-  name: string | null;
-  color: string;
-  x: number; // percentage 0-100
-  y: number; // percentage 0-100
-}
-
-export interface WhiteboardStrokeData {
+export type WhiteboardStrokeData = {
   id: string;
-  points: Array<{ x: number; y: number }>;
+  pts: Array<{ x: number; y: number }>; 
   color: string;
   width: number;
   tool: "pen" | "eraser";
   userId: string;
-}
+};
 
+// ─── Workspace Meta ───────────────────────────────────────────────────────────
+// (This can stay an interface because it is not synced into Liveblocks storage)
 export interface WorkspaceWithMeta {
   id: string;
   name: string;
@@ -91,7 +94,7 @@ export interface WorkspaceWithMeta {
     id: string;
     role: string;
     userId: string;
-    user: { id: string; name: string | null; image: string | null; color: string };
+    user: LiveUser;
   }>;
   _count?: { messages: number; members: number };
 }

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { useSocket } from "@/hooks/use-socket";
-import { useWorkspaceStore } from "@/store/workspace-store";
+import { useState, useRef, useEffect } from "react";
+import { useMutation, useStorage, useOthers, useUpdateMyPresence } from "@liveblocks/react";
 import { Send, Hash } from "lucide-react";
 import { formatChatTime } from "@/lib/utils";
 import type { ChatMessage } from "@/types";
@@ -12,8 +11,8 @@ interface Props {
   currentUser: { id: string; name: string | null; image: string | null; color: string };
 }
 
-// Group consecutive messages from same user within 5 minutes
-function groupMessages(msgs: ChatMessage[]) {
+function groupMessages(msgs: readonly ChatMessage[]) {
+  if (!msgs) return [];
   const groups: Array<{ user: ChatMessage["user"]; items: ChatMessage[]; firstAt: string }> = [];
   for (const msg of msgs) {
     const last = groups[groups.length - 1];
@@ -29,33 +28,29 @@ function groupMessages(msgs: ChatMessage[]) {
 
 export function ChatPanel({ workspaceId, currentUser }: Props) {
   const [input, setInput]         = useState("");
-  const [isTyping, setIsTyping]   = useState(false);
   const bottomRef                 = useRef<HTMLDivElement>(null);
-  const typingTimer               = useRef<NodeJS.Timeout>();
   const inputRef                  = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, typingUsers } = useWorkspaceStore();
-  const { sendMessage, startTyping, stopTyping } = useSocket();
+  const messages = useStorage((root) => root.messages) || [];
+  
+  const updateMyPresence = useUpdateMyPresence();
+  
+  const otherTypers = useOthers((others) => 
+    others.filter((other) => other.presence.isTyping)
+  );
 
-  const otherTypers = typingUsers.filter((u) => u.userId !== currentUser.id);
-  const groups      = groupMessages(messages);
+  const groups = groupMessages(messages);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, otherTypers.length]);
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useMutation(({ storage }) => {
     const content = input.trim();
     if (!content) return;
 
-    setInput("");
-    setIsTyping(false);
-    stopTyping(workspaceId, currentUser);
-    clearTimeout(typingTimer.current);
-
     const msg: ChatMessage = {
-      id:          `opt-${Date.now()}-${Math.random()}`,
+      id:        `msg-${Date.now()}-${Math.random()}`,
       content,
       workspaceId,
       userId:      currentUser.id,
@@ -64,16 +59,17 @@ export function ChatPanel({ workspaceId, currentUser }: Props) {
       user:        currentUser,
     };
 
-    // Optimistic: broadcast via socket (server persists async)
-    sendMessage(workspaceId, msg);
+    storage.get("messages").push(msg);
 
-    // Persist to DB
+    setInput("");
+    updateMyPresence({ isTyping: false });
+
     fetch("/api/messages", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ content, workspaceId }),
     }).catch(console.error);
-  }, [input, workspaceId, currentUser, sendMessage, stopTyping]);
+  }, [input, workspaceId, currentUser, updateMyPresence]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -81,11 +77,12 @@ export function ChatPanel({ workspaceId, currentUser }: Props) {
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    if (!isTyping) { setIsTyping(true); startTyping(workspaceId, currentUser); }
-    clearTimeout(typingTimer.current);
-    typingTimer.current = setTimeout(() => {
-      setIsTyping(false); stopTyping(workspaceId, currentUser);
-    }, 2500);
+    
+    if (e.target.value.trim().length > 0) {
+        updateMyPresence({ isTyping: true });
+    } else {
+        updateMyPresence({ isTyping: false });
+    }
   };
 
   return (
@@ -145,14 +142,18 @@ export function ChatPanel({ workspaceId, currentUser }: Props) {
           </div>
         ))}
 
-        {/* Typing indicator */}
+       {/* Typing indicator */}
         {otherTypers.length > 0 && (
           <div className="flex items-center gap-3 animate-fade-in">
             <div className="flex -space-x-2">
               {otherTypers.slice(0, 3).map((u) => (
-                <div key={u.userId} className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white border-2"
-                  style={{ background: "var(--primary)", borderColor: "var(--bg)" }}>
-                  {u.name?.[0] ?? "?"}
+                <div key={u.connectionId} className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white border-2"
+                  style={{ 
+                    /* ✅ Add "as string" casts to satisfy React's strict CSS types */
+                    background: (u.info?.color as string) || "var(--primary)", 
+                    borderColor: "var(--bg)" 
+                  }}>
+                  {(u.info?.name as string)?.[0] ?? "?"}
                 </div>
               ))}
             </div>
@@ -162,7 +163,7 @@ export function ChatPanel({ workspaceId, currentUser }: Props) {
               <span className="w-1.5 h-1.5 rounded-full typing-dot" style={{ background: "var(--muted)" }} />
               <span className="w-1.5 h-1.5 rounded-full typing-dot" style={{ background: "var(--muted)" }} />
               <span className="text-xs ml-1" style={{ color: "var(--faint)" }}>
-                {otherTypers.map((u) => u.name ?? "Someone").join(", ")} {otherTypers.length === 1 ? "is" : "are"} typing
+                {otherTypers.map((u) => (u.info?.name as string) ?? "Someone").join(", ")} {otherTypers.length === 1 ? "is" : "are"} typing
               </span>
             </div>
           </div>
@@ -185,7 +186,7 @@ export function ChatPanel({ workspaceId, currentUser }: Props) {
             className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed"
             style={{ color: "var(--text)", maxHeight: "120px" }}
           />
-          <button onClick={handleSend} disabled={!input.trim()}
+          <button onClick={() => handleSend()} disabled={!input.trim()}
             className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 disabled:opacity-40 disabled:scale-100"
             style={{ background: input.trim() ? "var(--primary)" : "var(--border)" }}>
             <Send size={13} color="white" />

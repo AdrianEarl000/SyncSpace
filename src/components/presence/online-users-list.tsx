@@ -1,6 +1,6 @@
 "use client";
 
-import { useWorkspaceStore } from "@/store/workspace-store";
+import { useOthers } from "@liveblocks/react";
 
 interface Member {
   id: string; role: string; userId: string;
@@ -8,9 +8,22 @@ interface Member {
 }
 
 export function OnlineUsersList({ members }: { members: Member[] }) {
-  const { onlineUsers, typingUsers } = useWorkspaceStore();
-  const onlineIds = new Set(onlineUsers.map((u) => u.userId));
-  const typingIds = new Set(typingUsers.map((u) => u.userId));
+  // 1. Get real-time presence from Liveblocks
+  const others = useOthers();
+
+  // 2. Rebuild the Set of online IDs by matching Liveblocks names to your database members
+  const onlineIds = new Set(
+    members
+      .filter((m) => others.some((o) => o.presence?.info?.name === m.user.name))
+      .map((m) => m.userId)
+  );
+
+  // 3. Do the exact same thing for typing indicators!
+  const typingIds = new Set(
+    members
+      .filter((m) => others.some((o) => o.presence?.isTyping && o.presence?.info?.name === m.user.name))
+      .map((m) => m.userId)
+  );
 
   const online  = members.filter((m) => onlineIds.has(m.userId));
   const offline = members.filter((m) => !onlineIds.has(m.userId));
@@ -24,7 +37,8 @@ export function OnlineUsersList({ members }: { members: Member[] }) {
         </h3>
         <div className="flex items-center gap-1.5 mt-1">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
-          <span className="text-xs" style={{ color: "var(--accent)" }}>{online.length} online</span>
+          {/* Note: +1 to account for the current user themselves! */}
+          <span className="text-xs" style={{ color: "var(--accent)" }}>{online.length + 1} online</span>
           <span className="text-xs" style={{ color: "var(--faint)" }}>· {offline.length} offline</span>
         </div>
       </div>
