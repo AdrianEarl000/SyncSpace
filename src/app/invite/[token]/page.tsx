@@ -11,7 +11,7 @@ export default async function InvitePage({ params }: Props) {
   }
 
   // Accept invite via API
-  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  const baseUrl = process.env.NEXTAUTH_URL ?? "https://sync-space-topaz.vercel.app/";
   const res  = await fetch(`${baseUrl}/api/invites?token=${params.token}`, {
     headers: { Cookie: "" }, // server-side fetch; auth handled via session
     cache: "no-store",
